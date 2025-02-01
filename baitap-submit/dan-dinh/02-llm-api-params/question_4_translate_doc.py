@@ -24,6 +24,10 @@ api_key = os.getenv('API_KEY')
 def extract_text_from_pdf(pdf_path):
     """
     Extract text from a PDF file and return it as a list of strings.
+    Parameters:
+    - pdf_path: Path to the PDF file
+    Returns:
+    - pdf_content: List of text strings
     """
     try:
         # Open the PDF file
@@ -40,14 +44,9 @@ def extract_text_from_pdf(pdf_path):
             pdf_content.append(text)
             print(f"Page {page_num + 1}:")
             print(text)
-            # Only extract text from the first 15 pages for testing purposes
-            if page_num > 15:
+            # Only extract text from the first 4 pages for testing purposes
+            if page_num > 4:
                 break
-
-        # for page in pdf_document:
-        #     text = page.get_text()
-        #     pdf_content.append(text)
-        #     print(text)
 
         # Close the document
         pdf_document.close()
@@ -60,6 +59,10 @@ def extract_text_from_pdf(pdf_path):
 def get_response(messages):
     """
     Get the response from the chat completion API.
+    Parameters:
+    - messages: List of messages to send to the API
+    Outputs:
+    - response: The response from the API
     """
     # Create Groq client
     client = Groq(
@@ -69,7 +72,7 @@ def get_response(messages):
     # Create chat completion
     chat_completion = client.chat.completions.create(        
         messages=messages,
-        model="llama3-8b-8192",
+        model="llama-3.3-70b-versatile",
         max_tokens=8192,
         stream=True,
     )
@@ -87,6 +90,12 @@ def get_response(messages):
 def wrap_text(text, width, font_size, pdf):
     """
     Word-wrap text to fit within a specified width.
+    Parameters:
+    - text: The text to wrap
+    - width: The maximum width of the wrapped text
+    - font_size: The font size of the text
+    Outputs:
+    - lines: A list of wrapped lines
     """
     words = text.split()  # Split the text into words
     lines = []  # List to store wrapped lines
@@ -108,6 +117,12 @@ def wrap_text(text, width, font_size, pdf):
 
 def summarize_text(messages, max_words=4000):
     """
+    Summarize the provided text in English while ensuring the following:
+    Parameters:
+    - messages: List of messages to summarize
+    - max_words: Maximum number of words in the summary
+    Outputs:
+    - None
     """
     # Count total words in both 'role' and 'content' fields
     total_words = sum(
@@ -151,6 +166,11 @@ def summarize_text(messages, max_words=4000):
 def create_pdf_from_text(pdf_content, output_pdf_path):
     """
     Create a PDF document from a list of text strings.
+    Parameters:
+    - pdf_content: List of text strings
+    - output_pdf_path: Path to save the PDF document
+    Outputs:
+    - None
     """
     # Register a font that supports Unicode (e.g., Vietnamese diacritics)
     pdfmetrics.registerFont(TTFont('Arial', 'Arial.ttf'))  # Use a Unicode font

@@ -115,7 +115,7 @@ def wrap_text(text, width, font_size, pdf):
 
     return lines
 
-def summarize_text(messages, max_words=4000):
+def summarize_text(messages, max_words=3500):
     """
     Summarize the provided text in English while ensuring the following:
     Parameters:

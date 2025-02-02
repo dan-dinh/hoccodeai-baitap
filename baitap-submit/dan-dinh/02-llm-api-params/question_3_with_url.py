@@ -41,7 +41,7 @@ text = soup.find(id="main-detail").get_text()
 prompt = f"\
             You are a journalist. Summarize the following article delimited by triple quotes, providing a brief summary of the article: \n \
             \"\"\"{text}\"\"\" \n \
-            1. Make sure the summary is coherent, captures the essence of the article and less than 100 words. \n\
+            1. Make sure the summary is coherent, captures the essence of the article and less than 200 words. \n\
             2. Exclude any URLs or links. \n\
             3. Try to keep it as concise as possible. \n\
             4. Ignore any comments at the end of the article or unrelated text. \n\

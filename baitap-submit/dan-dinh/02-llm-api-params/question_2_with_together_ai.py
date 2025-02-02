@@ -42,6 +42,10 @@ while True:
     )
 
     return_message = ""
+
+    # Print "Groq:" at the beginning
+    print("Groq:", end=" ")
+
     # Print response from chat completion
     for chunk in chat_completion:
         response = chunk.choices[0].delta.content or ""

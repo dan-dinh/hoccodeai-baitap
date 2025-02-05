@@ -25,11 +25,8 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 load_dotenv()
 
 # Get API key from environment variables
-endpoint = os.getenv('ENDPOINT')
 api_key = os.getenv('API_KEY')
-api_version = os.getenv('API_VERSION')
 model_name = os.getenv('MODEL_NAME')
-web_url = os.getenv('WEB_URL')
 
 # Create Groq client
 client = Groq(
@@ -172,7 +169,7 @@ def get_rag_prompt(message: str, result: str):
     message_embedding = encode_message(message)
 
     # Get the embeddings of the user message with the top 3 most similar items
-    q = collection.query(query_embeddings=[message_embedding], n_results=3)
+    q = collection.query(query_embeddings=[message_embedding], n_results=10)
 
     # Get the first result
     result = q['documents'][0]

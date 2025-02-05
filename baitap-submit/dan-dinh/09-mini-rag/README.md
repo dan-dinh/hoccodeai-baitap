@@ -6,6 +6,9 @@ Dan Dinh
 
 ## Prerequisites:
 - Install dependencies in requirements.txt
+- Add key/value pair in the .env file
+    - `API_KEY`: `<<Your Groq API Key>>`
+    - `MODEL_NAME`: `<<Your Groq Model Name>>`
 
 ## Installation:
 1. Open practice_embedding_31_69c.py

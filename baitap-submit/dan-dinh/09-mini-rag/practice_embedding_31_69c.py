@@ -160,7 +160,7 @@ def get_rag_prompt(message: str, result: str):
     - str: RAG prompt
     """
     # Define the name of the collection
-    COLLECTION_NAME = "practice_embedding_31_69a"
+    COLLECTION_NAME = "practice_embedding_31_69c"
 
     # Get the chromadb collection
     collection = get_collection(COLLECTION_NAME, './data')

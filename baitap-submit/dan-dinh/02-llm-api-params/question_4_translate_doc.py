@@ -133,12 +133,12 @@ def summarize_text(messages, max_words=3500):
 
     # Check if the total words exceed the maximum limit
     if total_words > max_words:
-        summarized_prompt = f"\
-            You are a professional summarizer. Summarize the provided text in English while ensuring the following:\n\
-                1. Only output the results, no need to write the introduction or conclusion.\n\
-                2. Make sure the summary is coherent, captures the essence of the article.\n\
-                3. Make sure the summary ends with a full stop and less than 500 words.\n\
-            "
+        summarized_prompt = f"""
+            You are a professional summarizer. Summarize the provided text in English while ensuring the following:
+                1. Only output the results, no need to write the introduction or conclusion.
+                2. Make sure the summary is coherent, captures the essence of the article.
+                3. Make sure the summary ends with a full stop and less than 500 words.
+            """
 
         summarized_message = []
 
@@ -224,14 +224,15 @@ pdf_path = input("Enter the file path: ")
 pdf_content = extract_text_from_pdf(pdf_path)
 
 # Define the prompt for the chat completion
-initial_prompt = f"\
-    You are a professional translator specializing in Vietnamese and domain knowledge of the provided document. Translate the provided text into Vietnamese while ensuring the following:\
-        1. Only output the results, no need to write the introduction or conclusion.\n\
-        2. Use only valid and accurate Vietnamese characters, avoiding any incorrect or non-Vietnamese symbols or characters.\n\
-        3. Ensure the translation accurately conveys the original meaning and context, focusing on clarity and professionalism.\n\
-        4. Make sure correctly translate technical terms and context-specific language into Vietnamese to ensure they are understood by readers in the field.\n\
-        5. Avoid adding unrelated notes or comments; provide only the fully translated Vietnamese text.\n\
-        6. Pay close attention to grammar, syntax, and terminology to ensure the translation is coherent and error-free.\n"
+initial_prompt = f"""
+    You are a professional translator specializing in Vietnamese and domain knowledge of the provided document. Translate the provided text into Vietnamese while ensuring the following:
+        1. Only output the results, no need to write the introduction or conclusion.
+        2. Use only valid and accurate Vietnamese characters, avoiding any incorrect or non-Vietnamese symbols or characters.
+        3. Ensure the translation accurately conveys the original meaning and context, focusing on clarity and professionalism.
+        4. Make sure correctly translate technical terms and context-specific language into Vietnamese to ensure they are understood by readers in the field.
+        5. Avoid adding unrelated notes or comments; provide only the fully translated Vietnamese text.
+        6. Pay close attention to grammar, syntax, and terminology to ensure the translation is coherent and error-free.
+    """
 
 messages = []
 

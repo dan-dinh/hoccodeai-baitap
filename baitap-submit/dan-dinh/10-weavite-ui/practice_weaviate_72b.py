@@ -1,3 +1,9 @@
+#################################################
+# Author:   Dan Dinh                            #
+# Date:     2025-01-29                          #
+# Exercise: 10 with kagglehub book collection   #
+#################################################
+
 import os
 import uuid
 import pandas as pd

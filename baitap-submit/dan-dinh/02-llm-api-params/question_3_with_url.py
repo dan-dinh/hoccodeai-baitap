@@ -25,28 +25,39 @@ client = Groq(
 # Get user input for URL
 url = input("Enter the URL: ")
 
-# Make a GET request to the URL
-response = requests.get(url)
+try:
+    # Make a GET request to the URL
+    response = requests.get(url)
 
-# Get the HTML content of the page
-html = response.text
+    # Check if the request was successful
+    if response.status_code == 200:
+        # Get the HTML content of the page
+        html = response.text
 
-# Parse the HTML content
-soup = BeautifulSoup(html, "html.parser")
+        # Parse the HTML content
+        soup = BeautifulSoup(html, "html.parser")
 
-# Extract the text from the main-detail div element
-text = soup.find(id="main-detail").get_text()
+        # Extract the text from the main-detail div element
+        text = soup.find(id="main-detail").get_text()
+    else:
+        print(f"Error: Received status code {response.status_code}")
+except requests.exceptions.RequestException as e:
+    print(f"Error: Request failed with {e}")
+    exit()
 
 # Define the prompt for the chat completion
-prompt = f"\
-            You are a journalist. Summarize the following article delimited by triple quotes, providing a brief summary of the article: \n \
-            \"\"\"{text}\"\"\" \n \
-            1. Make sure the summary is coherent, captures the essence of the article and less than 200 words. \n\
-            2. Exclude any URLs or links. \n\
-            3. Try to keep it as concise as possible. \n\
-            4. Ignore any comments at the end of the article or unrelated text. \n\
-            5. Translate it from English to Vietnamese and make sure it is easy to understand.\n\
-            6. Do not write the English version.\n"
+prompt = f"""
+            You are a journalist. Summarize the following article delimited by triple quotes, providing a brief summary of the article:
+
+            "{text}"
+
+            1. Make sure the summary is coherent, captures the essence of the article and less than 200 words.
+            2. Exclude any URLs or links.
+            3. Try to keep it as concise as possible.
+            4. Ignore any comments at the end of the article or unrelated text.
+            5. Translate it from English to Vietnamese and make sure it is easy to understand.
+            6. Do not write the English version.
+        """
 
 # Create chat completion
 chat_completion = client.chat.completions.create(        

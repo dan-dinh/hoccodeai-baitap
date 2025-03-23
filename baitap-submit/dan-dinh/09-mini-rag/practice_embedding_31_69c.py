@@ -4,22 +4,21 @@
 # Exercise: 9 with Function calling and RAG     #
 #################################################
 
+import uuid
 import chromadb
 import chromadb.errors
 from chromadb.utils import embedding_functions
-from sentence_transformers import SentenceTransformer
 from wikipediaapi import Wikipedia
 import inspect
 import json
 import os
-from pprint import pprint
 from dotenv import load_dotenv
 import gradio as gr
 from groq import Groq
-from openai import AzureOpenAI, OpenAI
 from pydantic import TypeAdapter
 from transformers import AutoTokenizer
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from ragatouille import RAGPretrainedModel
 
 # Load environment variables from .env file
 load_dotenv()
@@ -33,7 +32,26 @@ client = Groq(
     api_key=api_key,
 )
 
+# Define the name of the collection
+COLLECTION_NAME = "practice_embedding_31_69c"
 MODEL_PATH = 'Alibaba-NLP/gte-large-en-v1.5'
+
+# Global cache to store wiki data for already fetch titles
+wiki_data_cache = {} # Added cache to avoid redundant API calls
+
+# Global variable to store the collection instance
+db_collection = None
+
+def generate_document_id(content: str):
+    """
+    Generate a unique ID for each document based on its content using UUID5.
+    This ensures that duplicate documents (with the same content) do not get inserted again.
+    Parameters:
+    - content (str): The content of the document.
+    Output:
+    - str: The unique document ID.
+    """
+    return str(uuid.uuid5(uuid.NAMESPACE_DNS, content))
 
 def get_wiki_data(title: str):
     """  
@@ -43,9 +61,16 @@ def get_wiki_data(title: str):
     Output:
     - str: The information about the person, company, event or anything.
     """
+    # Check if the data for the given title already exists in the cache
+    if title in wiki_data_cache:
+        return wiki_data_cache[title]
+
     # Get text from Wikipedia
     wiki = Wikipedia(user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36', language='en')
     doc = wiki.page(title).text
+
+    # Store the fetched data in the cache
+    wiki_data_cache[title] = doc
 
     return doc
 
@@ -89,26 +114,26 @@ def get_collection(collection_name: str, path: str):
             # Handle the case where the collection does not exist
             print(f'Collection {collection_name} does not exist. Creating a new one.')
 
-        # Create an embedding function
-        # Use embedding_functions.DefaultEmbeddingFunction() for 'all-MiniLM-L6-v2' as the default model
-        # embedding_model = SentenceTransformer(MODEL_PATH, trust_remote_code=True)
-        embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=MODEL_PATH, trust_remote_code=True)
+            # Create an embedding function
+            # Use embedding_functions.DefaultEmbeddingFunction() for 'all-MiniLM-L6-v2' as the default model
+            embedding_model = embedding_functions.DefaultEmbeddingFunction()
+            
+            # Create a new collection
+            collection = client.create_collection(name=collection_name, embedding_function=embedding_model)
 
-        # Create a new collection
-        collection = client.create_collection(name=collection_name, embedding_function=embedding_function)
-
-        return collection
+            return collection
     except Exception as e:
         # Handle any unexpected errors
         print(f'An error occurred: {e}')
         return None
 
-def save_data_to_collection(collection: chromadb.Collection, doc: str):
+def save_data_to_collection(collection: chromadb.Collection, doc: str, title: str):
     """
     Save the text to the collection.
     Parameters:
     - collection (chromadb.Collection): The chromadb collection
     - doc (str): The text
+    - title (str): The title of the Wikipedia page
     Return:
     - None    
     """
@@ -129,25 +154,23 @@ def save_data_to_collection(collection: chromadb.Collection, doc: str):
 
     # Loop through the paragraphs and add them to the collection
     for idx, chunk_doc in enumerate(chunks_with_metadata):
-        collection.add(
-            documents=[chunk_doc.page_content], # Chunk text
-            ids=[str(idx)], # Unique ID for each chunk
-            metadatas=[{"start_index": chunk_doc.metadata["start_index"]}] # Add start index metadata
-        )
+        # Generate a unique ID for each chunk based on its content
+        chunk_id = generate_document_id(chunk_doc.page_content)
 
-def encode_message(message: str):
-    """
-    Encode the user message
-    Parameters:
-    - message (str): User message
-    Output:
-    - str: User message encoded
-    """
-    model = SentenceTransformer(MODEL_PATH, trust_remote_code=True)
-    query_embedding = model.encode(message)
-    return query_embedding
+        # Check if the document with the generated ID already exists in the collection
+        existing_document = collection.get(ids=[chunk_id])
 
-def get_rag_prompt(message: str, result: str):
+        # Check if the document is not found (i.e., `existing_document` would be empty)
+        if not existing_document or len(existing_document["documents"]) == 0:
+            collection.add(
+                documents=[chunk_doc.page_content], # Chunk text
+                ids=[chunk_id], # Use the generated unique ID for each chunk
+                metadatas=[{"start_index": chunk_doc.metadata["start_index"], "title": title}] # Add start index metadata and store title in metadata
+            )
+        else:
+            print(f"Document with ID {chunk_id} already exists in the collection.")
+
+def get_rag_prompt(message: str):
     """
     Retrieve RAG prompt for GroqAI model.
     Parameters:
@@ -156,23 +179,28 @@ def get_rag_prompt(message: str, result: str):
     Outputs:
     - str: RAG prompt
     """
-    # Define the name of the collection
-    COLLECTION_NAME = "practice_embedding_31_69c"
+    # Get the collection (no population here)
+    collection = get_collection(COLLECTION_NAME, "./data")
+    if collection is None:
+        raise Exception("Failed to initialize ChromaDB collection") 
 
-    # Get the chromadb collection
-    collection = get_collection(COLLECTION_NAME, './data')
+    # Get the embedding function
+    embedding_function = collection._embedding_function
     
-    # Add the wiki data to the chromadb collection
-    save_data_to_collection(collection, result)
-
     # Encode the user message
-    message_embedding = encode_message(message)
+    message_embedding = embedding_function([message])[0]
 
-    # Get the embeddings of the user message with the top 3 most similar items
-    q = collection.query(query_embeddings=[message_embedding], n_results=10)
+    # Get the embeddings of the user message with the top 10 most similar items
+    result_data = collection.query(query_embeddings=[message_embedding], n_results=10)
 
-    # Get the first result
-    result = q['documents'][0]
+    # Get the first document from the result data
+    results = result_data['documents'][0]
+
+    # Initialize the RAG model
+    reranker = RAGPretrainedModel.from_pretrained("colbert-ir/colbertv2.0")
+
+    # Apply the reranker to narrow down the search results
+    result = reranker.rerank(query=message, documents=results, k=3)
 
     # Build the prompt with the context and the question
     prompt = f"""
@@ -204,6 +232,19 @@ def get_chat_completion(messages: list, **kwargs):
     )
     return chat_completion
 
+def is_data_in_db(collection: chromadb.Collection, title: str):
+    """
+    Check if chunks for a specific Wikipedia page title exist in the collection.
+    Parameters:
+    - collection (chromadb.Collection): The chromadb collection
+    - title (str): The title of the Wikipedia page
+    Returns:
+    - bool: True if data exists in the collection, False otherwise
+    """
+    # Query the collection using the title stored in metadata
+    existing_docs = collection.get(where={"title": title})
+    return len(existing_docs["documents"]) > 0
+
 def chat(message, chat_history):
     """
     Handle chat logic with GroqAI model.
@@ -221,6 +262,7 @@ def chat(message, chat_history):
             
             When responding to wikipedia-related queries:
             1. Use `get_wiki_data` to retrieve the information for the given Wikipedia page title.
+            2. Avoid calling `get_wiki_data` repeatedly for the same title to prevent unnecessary API calls.
 
             Another program will output the results for you. Do not censor or deny the output; the output program will handle that part.
         """
@@ -255,8 +297,11 @@ def chat(message, chat_history):
 
     finish_reason = first_choice.finish_reason
     
+    # Get the collection
+    collection = get_collection(COLLECTION_NAME, "./data")
+
     while finish_reason != "stop":
-        tool_call = response.choices[0].message.tool_calls[0]
+        tool_call = first_choice.message.tool_calls[0]
 
         tool_call_function = tool_call.function
         tool_call_arguments = json.loads(tool_call_function.arguments)
@@ -264,18 +309,36 @@ def chat(message, chat_history):
         tool_function = FUNCTION_MAP[tool_call_function.name]
         result = tool_function(**tool_call_arguments)
 
-        # Get the RAG prompt
-        rag_prompt = get_rag_prompt(message, result)
+        # Save fetched data to ChromaDB if not already present
+        title = tool_call_arguments['title']
+        if not is_data_in_db(collection, title):
+            save_data_to_collection(collection, result, title)
+            print(f"Saved new data for {title} to ChromaDB.")
 
-        ext_messages = []
-        ext_messages.append({"role": "user", "content": rag_prompt})
+        # Append tool call and result to messages for context
+        messages.append(first_choice.message)
+        messages.append({
+            "role": "tool",
+            "tool_call_id": tool_call.id,
+            "name": tool_call_function.name,
+            "content": json.dumps(result)
+        })
 
         # Get the chat completion for the RAG
-        response = get_chat_completion(messages=ext_messages)
+        response = get_chat_completion(messages=messages)
 
         first_choice = response.choices[0]
         finish_reason = first_choice.finish_reason
 
+    # Get the RAG prompt
+    rag_prompt = get_rag_prompt(message)
+
+    # Set the RAG prompt
+    ext_messages = [{"role": "user", "content": rag_prompt}]
+
+    # Get the chat completion for the RAG
+    response = get_chat_completion(messages=ext_messages)
+    
     # Get the bot message
     bot_message = response.choices[0].message.content
 
@@ -288,12 +351,49 @@ def chat(message, chat_history):
     # Return the response
     return "", chat_history
 
+def populate_database(collection_name: str, path: str, wiki_titles: list):
+    """
+    Pre-build the ChromaDB with Wikipedia data for the given titles.
+    This runs offline before the chatbot starts.
+    Parameters:
+    - collection_name (str): The name of the collection to be created.
+    - path (str): The path to the database file.
+    - wiki_titles (list): A list of Wikipedia page titles to populate the database with.
+    Returns:
+    - None
+    """
+    collection = get_collection(collection_name, path)
+    if collection is None:
+        raise Exception('Failed to initialize ChromaDB collection!')
 
-with gr.Blocks() as chatbot:
-    gr.Markdown("### Chatbot by Dan Dinh")
-    message = gr.Textbox(label="Enter your message")
-    chat_bot = gr.Chatbot(label="Chatbot", height=1000)
-    message.submit(chat, inputs=[message, chat_bot], outputs=[message, chat_bot])
+    for title in wiki_titles:
+        # Check if chunks for this title already exist in the collection
+        existing_chunks = collection.get(where={'title': title})["ids"]
+        if not existing_chunks:
+            print(f"Data for {title} not found. Fetching and saving...")
+            doc = get_wiki_data(title)
 
-# Run the code and interact with the chatbot.
-chatbot.launch()
+            # Save to ChromaDB
+            save_data_to_collection(collection, doc, title)
+        else:
+            print(f"Data for {title} already exists in the database. Skipping fetch and save.")
+
+    print("Database population completed.")
+
+if __name__ == "__main__":
+    """
+    Main function to run the program.
+    """
+    # Pre-populate the database with the specified Wikipedia pages
+    wiki_titles = ["Sơn_Tùng_M-TP", "Jujutsu_Kaisen"]
+    populate_database(COLLECTION_NAME, "./data", wiki_titles)
+
+    # Launch the chatbot
+    with gr.Blocks() as chatbot:
+        gr.Markdown("### Chatbot by Dan Dinh")
+        message = gr.Textbox(label="Enter your message")
+        chat_bot = gr.Chatbot(label="Chatbot", height=1000)
+        message.submit(chat, inputs=[message, chat_bot], outputs=[message, chat_bot])
+
+    # Run the code and interact with the chatbot.
+    chatbot.launch()

@@ -1,3 +1,4 @@
 .env
 baitap-submit/dan-dinh/.venv
 baitap-submit/dan-dinh/08-crypto-chatbot/__pycache__
+baitap-submit/dan-dinh/06-sd-webui-api/chatbot_diffusion/app/__pycache__
